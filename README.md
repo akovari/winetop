@@ -38,7 +38,7 @@ sudo apt update && sudo apt install winetop
 sudo apt install ./dist/debian/winetop_0.1.0-1_amd64.deb
 ```
 
-See [dist/](dist/) for **Debian/Ubuntu** (PPA + `.deb`), AUR, Homebrew, Copr, and [flake.nix](flake.nix) for Nix.
+See [dist/](dist/) for packaging and [dist/RELEASING.md](dist/RELEASING.md) for the automated release pipeline.
 
 ## Usage
 

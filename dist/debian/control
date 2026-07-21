@@ -5,9 +5,10 @@ Maintainer: akovari <akovari@users.noreply.github.com>
 Build-Depends:
  debhelper-compat (= 13),
  cargo,
- rustc,
+ rustc (>= 1.75),
  libssl-dev,
- pkg-config
+ pkg-config,
+ ca-certificates
 Standards-Version: 4.6.2
 Homepage: https://github.com/akovari/winetop
 Rules-Requires-Root: no
