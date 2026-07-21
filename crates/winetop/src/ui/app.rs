@@ -325,14 +325,10 @@ impl App {
         if self.detail {
             match code {
                 KeyCode::Esc | KeyCode::Char('d') => self.detail = false,
-                KeyCode::Char('c') => self.open_process_kill(),
-                KeyCode::Up | KeyCode::Char('k') => {
-                    self.move_sel(-1);
-                    // Stay in detail on newly selected row
-                }
-                KeyCode::Down | KeyCode::Char('j') => {
-                    self.move_sel(1);
-                }
+                KeyCode::Char('k') => self.open_process_kill(),
+                KeyCode::Char('K') => self.open_session_kill(),
+                KeyCode::Up => self.move_sel(-1),
+                KeyCode::Down => self.move_sel(1),
                 _ => {}
             }
             return false;
@@ -375,8 +371,8 @@ impl App {
             KeyCode::Char('z') => {
                 self.compact = !self.compact;
             }
-            KeyCode::Up | KeyCode::Char('k') => self.move_sel(-1),
-            KeyCode::Down | KeyCode::Char('j') => self.move_sel(1),
+            KeyCode::Up => self.move_sel(-1),
+            KeyCode::Down => self.move_sel(1),
             KeyCode::Home => {
                 self.selected = 0;
                 self.table_state.select(Some(0));
@@ -413,22 +409,8 @@ impl App {
             KeyCode::Enter | KeyCode::Char('d') => {
                 self.detail = true;
             }
-            KeyCode::Char('c') | KeyCode::Delete => self.open_process_kill(),
-            KeyCode::Char('K') => {
-                if let Some(id) = self.selected_session_id() {
-                    let name = self
-                        .selected_session()
-                        .map(|s| s.name.clone())
-                        .unwrap_or_else(|| id.clone());
-                    self.kill_modal = Some(KillModal {
-                        kind: KillModalKind::Session,
-                        method_idx: 0,
-                        session_id: id,
-                        pid: None,
-                        label: name,
-                    });
-                }
-            }
+            KeyCode::Char('k') | KeyCode::Delete => self.open_process_kill(),
+            KeyCode::Char('K') => self.open_session_kill(),
             KeyCode::Char('P') => {
                 if let Some(id) = self.selected_session_id() {
                     let name = self
@@ -498,9 +480,25 @@ impl App {
                 });
             }
             NavRow::Session { .. } => {
-                self.status =
-                    "select a process row (Tab to expand, ↑↓ to move), then c to kill".into();
+                // On a session row, k means the same family as K: kill the session.
+                self.open_session_kill();
             }
+        }
+    }
+
+    fn open_session_kill(&mut self) {
+        if let Some(id) = self.selected_session_id() {
+            let name = self
+                .selected_session()
+                .map(|s| s.name.clone())
+                .unwrap_or_else(|| id.clone());
+            self.kill_modal = Some(KillModal {
+                kind: KillModalKind::Session,
+                method_idx: 0,
+                session_id: id,
+                pid: None,
+                label: name,
+            });
         }
     }
 
@@ -611,10 +609,10 @@ impl App {
             key_hint(
                 &[
                     ("↑↓", "process"),
-                    ("c", "kill proc"),
+                    ("k", "kill proc"),
+                    ("K", "kill sess"),
                     ("d", "detail"),
                     ("←", "collapse"),
-                    ("K", "kill sess"),
                     ("P", "wineserver"),
                     ("?", "help"),
                     ("q", "quit"),
@@ -626,10 +624,9 @@ impl App {
                 &[
                     ("↑↓", "select"),
                     ("Tab/→", "expand"),
+                    ("k/K", "kill sess"),
                     ("/", "filter"),
                     ("d", "detail"),
-                    ("c", "kill proc"),
-                    ("K", "kill sess"),
                     ("?", "help"),
                     ("q", "quit"),
                 ],
@@ -743,7 +740,7 @@ impl App {
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("sessions  (Tab expand · ↑↓ processes · c kill)"),
+                .title("sessions  (Tab expand · ↑↓ · k kill · K session)"),
         )
         .row_highlight_style(self.theme.selected())
         .highlight_symbol("> ");
@@ -791,10 +788,10 @@ impl App {
         let lines = vec![
             Line::from(Span::styled(" winetop keymap", self.theme.header())),
             Line::from(""),
-            Line::from(" ↑↓ / j k   move selection (sessions and processes)"),
+            Line::from(" ↑↓         move selection (sessions and processes)"),
             Line::from(" Tab / →    expand session (show processes)"),
             Line::from(" ← / h      collapse session"),
-            Line::from(" c / Del    kill selected process (confirm)"),
+            Line::from(" k          kill selected process (or session if on session row)"),
             Line::from(" K          kill whole session (confirm)"),
             Line::from(" P          wineserver -k for prefix (confirm)"),
             Line::from(" d / Enter  detail drawer for selection"),
@@ -899,7 +896,7 @@ impl App {
         }
         lines.push(Line::from(""));
         lines.push(Line::from(
-            " Esc/d close · c kill process · ↑↓ move selection",
+            " Esc/d close · k kill · K session · ↑↓ move",
         ));
         draw_modal(frame, area, " detail ", lines, self.theme.header());
     }

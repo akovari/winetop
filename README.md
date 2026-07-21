@@ -48,12 +48,12 @@ winetop dump > snap.json
 
 | Key | Action |
 |-----|--------|
-| `↑↓` / `j` `k` | Move across sessions **and** processes |
+| `↑↓` | Move across sessions **and** processes |
 | `Tab` / `→` | Expand session (process rows) |
 | `←` | Collapse session |
 | `/` | Filter (name, pid, cmdline) |
 | `d` / Enter | Detail |
-| `c` / `Del` | Kill **selected process** |
+| `k` | Kill **selected process** (or session if on a session row) |
 | `K` | Kill session |
 | `P` | `wineserver -k` |
 | `t` | Tree |
