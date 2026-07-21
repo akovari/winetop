@@ -1,0 +1,23 @@
+Source: winetop
+Section: utils
+Priority: optional
+Maintainer: akovari <akovari@users.noreply.github.com>
+Build-Depends:
+ debhelper-compat (= 13),
+ cargo,
+ rustc,
+ libssl-dev,
+ pkg-config
+Standards-Version: 4.6.2
+Homepage: https://github.com/akovari/winetop
+Rules-Requires-Root: no
+Vcs-Browser: https://github.com/akovari/winetop
+Vcs-Git: https://github.com/akovari/winetop.git
+
+Package: winetop
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: htop for Wine prefixes
+ Native CLI/TUI to monitor and stop Wine, Proton, Lutris, Heroic, and
+ Bottles sessions. Groups processes by WINEPREFIX / Steam AppId, shows
+ resource usage, and supports a safe kill ladder (reaper, wineserver -k).

@@ -1,5 +1,13 @@
 # Packaging
 
+## Debian / Ubuntu
+
+See [debian/README.md](debian/README.md):
+
+- Install script / `cargo binstall` (easiest)
+- [build-deb-from-release.sh](debian/build-deb-from-release.sh) — make a `.deb` from a GitHub Release
+- [debian/](debian/) — `dpkg-buildpackage` source-package template
+
 ## AUR (`winetop-bin`)
 
 See [aur/PKGBUILD](aur/PKGBUILD). After a GitHub Release, update `pkgver` / `sha256sums` and publish to the AUR.

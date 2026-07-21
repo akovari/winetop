@@ -1,0 +1,2 @@
+# Populated by debian/rules override_dh_auto_install into debian/winetop/
+# Kept for clarity when switching to dh_install later.
