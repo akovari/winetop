@@ -52,6 +52,54 @@ pub fn windows_image_from_cmdline(cmdline: &str) -> Option<String> {
     best.map(|(_, n)| n)
 }
 
+/// Differentiating detail for duplicate Windows images (path + args after `.exe`).
+pub fn cmdline_detail(cmdline: &str) -> String {
+    let lower = cmdline.to_ascii_lowercase();
+    if let Some(exe_at) = lower.rmatch_indices(".exe").next().map(|(i, _)| i) {
+        let path_start = cmdline[..exe_at]
+            .rfind([' ', '\t'])
+            .map(|p| p + 1)
+            .unwrap_or(0);
+        let path_end = exe_at + 4;
+        let win_path = &cmdline[path_start..path_end];
+        let args = cmdline[path_end..].trim();
+        let short_path = shorten_win_path(win_path);
+        if args.is_empty() {
+            short_path
+        } else {
+            format!("{short_path} {args}")
+        }
+    } else {
+        // Fall back: strip wine loader prefix, keep trailing tokens
+        let trimmed = cmdline
+            .split_whitespace()
+            .filter(|t| {
+                let t = t.to_ascii_lowercase();
+                !t.ends_with("wine")
+                    && !t.ends_with("wine64")
+                    && !t.contains("preloader")
+                    && !t.contains("wineserver")
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
+        if trimmed.is_empty() {
+            cmdline.to_string()
+        } else {
+            trimmed
+        }
+    }
+}
+
+fn shorten_win_path(path: &str) -> String {
+    let norm = path.replace('\\', "/");
+    let parts: Vec<&str> = norm.split('/').filter(|p| !p.is_empty()).collect();
+    if parts.len() <= 2 {
+        return path.to_string();
+    }
+    // Keep last two components: Battle.net/Battle.net.exe
+    format!("…/{}/{}", parts[parts.len() - 2], parts[parts.len() - 1])
+}
+
 pub fn env_get(environ: &[(String, String)], key: &str) -> Option<String> {
     environ
         .iter()
@@ -128,5 +176,14 @@ mod tests {
             windows_image_from_cmdline("wine64 C:\\Games\\foo.exe --bar"),
             Some("foo.exe".into())
         );
+    }
+
+    #[test]
+    fn cmdline_detail_args() {
+        let d = cmdline_detail(
+            "wine64-preloader C:\\Program Files (x86)\\Battle.net\\Battle.net.exe --type=gpu-process",
+        );
+        assert!(d.contains("Battle.net.exe"));
+        assert!(d.contains("--type=gpu-process"));
     }
 }

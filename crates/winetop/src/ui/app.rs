@@ -52,11 +52,20 @@ struct KillModal {
     method_idx: usize,
     session_id: String,
     pid: Option<u32>,
+    label: String,
+}
+
+/// Flat navigable row in the sessions table (session header or child process).
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum NavRow {
+    Session { session_idx: usize },
+    Process { session_idx: usize, proc_idx: usize },
 }
 
 pub struct App {
     snap: SessionSnapshot,
     tracker: CpuTracker,
+    /// Index into `nav_rows()`.
     selected: usize,
     table_state: TableState,
     expanded: HashSet<String>,
@@ -66,12 +75,14 @@ pub struct App {
     sort: SortKey,
     theme: Theme,
     detail: bool,
-    detail_proc_idx: usize,
     kill_modal: Option<KillModal>,
     status: String,
     refresh_ms: u64,
     cpu_history: HashMap<String, Vec<f32>>,
     compact: bool,
+    /// Prefer re-selecting this PID after refresh.
+    sticky_pid: Option<u32>,
+    sticky_session: Option<String>,
 }
 
 impl App {
@@ -82,7 +93,6 @@ impl App {
             orphans: vec![],
             scanned_at: chrono::Utc::now(),
         });
-        // Warm CPU sample
         let _ = scan_with(&mut tracker);
         let snap = scan_with(&mut tracker).unwrap_or(snap);
         let mut app = Self {
@@ -97,14 +107,20 @@ impl App {
             sort: SortKey::Cpu,
             theme: Theme::new(ThemeId::Default),
             detail: false,
-            detail_proc_idx: 0,
             kill_modal: None,
             status: String::new(),
             refresh_ms,
             cpu_history: HashMap::new(),
             compact: false,
+            sticky_pid: None,
+            sticky_session: None,
         };
+        // Auto-expand sole session so processes are immediately navigable.
+        if app.snap.sessions.len() == 1 {
+            app.expanded.insert(app.snap.sessions[0].id.clone());
+        }
         app.record_history();
+        app.clamp_selection();
         app
     }
 
@@ -113,7 +129,7 @@ impl App {
             Ok(snap) => {
                 self.snap = snap;
                 self.record_history();
-                self.clamp_selection();
+                self.restore_selection();
             }
             Err(e) => self.status = format!("scan error: {e}"),
         }
@@ -129,7 +145,7 @@ impl App {
         }
     }
 
-    fn visible_sessions(&self) -> Vec<usize> {
+    fn visible_session_indices(&self) -> Vec<usize> {
         let mut idxs: Vec<usize> = (0..self.snap.sessions.len()).collect();
         let f = self.filter.to_ascii_lowercase();
         if !f.is_empty() {
@@ -138,6 +154,11 @@ impl App {
                 s.name.to_ascii_lowercase().contains(&f)
                     || s.source.as_str().to_ascii_lowercase().contains(&f)
                     || s.short_prefix().to_ascii_lowercase().contains(&f)
+                    || s.processes.iter().any(|p| {
+                        p.display_name().to_ascii_lowercase().contains(&f)
+                            || p.detail().to_ascii_lowercase().contains(&f)
+                            || p.pid.to_string().contains(&f)
+                    })
                     || s.steam_app_id
                         .map(|id| id.to_string().contains(&f))
                         .unwrap_or(false)
@@ -159,8 +180,30 @@ impl App {
         idxs
     }
 
+    fn nav_rows(&self) -> Vec<NavRow> {
+        let mut rows = Vec::new();
+        for session_idx in self.visible_session_indices() {
+            let id = self.snap.sessions[session_idx].id.clone();
+            rows.push(NavRow::Session { session_idx });
+            if self.expanded.contains(&id) {
+                let n = self.snap.sessions[session_idx].processes.len();
+                for proc_idx in 0..n {
+                    rows.push(NavRow::Process {
+                        session_idx,
+                        proc_idx,
+                    });
+                }
+            }
+        }
+        rows
+    }
+
+    fn current_row(&self) -> Option<NavRow> {
+        self.nav_rows().get(self.selected).cloned()
+    }
+
     fn clamp_selection(&mut self) {
-        let n = self.visible_sessions().len();
+        let n = self.nav_rows().len();
         if n == 0 {
             self.selected = 0;
             self.table_state.select(None);
@@ -169,6 +212,58 @@ impl App {
                 self.selected = n - 1;
             }
             self.table_state.select(Some(self.selected));
+        }
+        self.remember_sticky();
+    }
+
+    fn restore_selection(&mut self) {
+        let rows = self.nav_rows();
+        if rows.is_empty() {
+            self.selected = 0;
+            self.table_state.select(None);
+            return;
+        }
+        if let Some(pid) = self.sticky_pid {
+            if let Some(i) = rows.iter().position(|r| match r {
+                NavRow::Process {
+                    session_idx,
+                    proc_idx,
+                } => self.snap.sessions[*session_idx].processes[*proc_idx].pid == pid,
+                _ => false,
+            }) {
+                self.selected = i;
+                self.table_state.select(Some(self.selected));
+                return;
+            }
+        }
+        if let Some(ref sid) = self.sticky_session {
+            if let Some(i) = rows.iter().position(|r| match r {
+                NavRow::Session { session_idx } => self.snap.sessions[*session_idx].id == *sid,
+                _ => false,
+            }) {
+                self.selected = i;
+                self.table_state.select(Some(self.selected));
+                return;
+            }
+        }
+        self.clamp_selection();
+    }
+
+    fn remember_sticky(&mut self) {
+        match self.current_row() {
+            Some(NavRow::Process {
+                session_idx,
+                proc_idx,
+            }) => {
+                let s = &self.snap.sessions[session_idx];
+                self.sticky_pid = Some(s.processes[proc_idx].pid);
+                self.sticky_session = Some(s.id.clone());
+            }
+            Some(NavRow::Session { session_idx }) => {
+                self.sticky_pid = None;
+                self.sticky_session = Some(self.snap.sessions[session_idx].id.clone());
+            }
+            None => {}
         }
     }
 
@@ -229,26 +324,14 @@ impl App {
 
         if self.detail {
             match code {
-                KeyCode::Esc | KeyCode::Char('d') | KeyCode::Enter => self.detail = false,
-                KeyCode::Char('c') => {
-                    if let Some(pid) = self.selected_proc_pid() {
-                        self.kill_modal = Some(KillModal {
-                            kind: KillModalKind::Process,
-                            method_idx: 0,
-                            session_id: self.selected_session_id().unwrap_or_default(),
-                            pid: Some(pid),
-                        });
-                    }
-                }
+                KeyCode::Esc | KeyCode::Char('d') => self.detail = false,
+                KeyCode::Char('c') => self.open_process_kill(),
                 KeyCode::Up | KeyCode::Char('k') => {
-                    self.detail_proc_idx = self.detail_proc_idx.saturating_sub(1);
+                    self.move_sel(-1);
+                    // Stay in detail on newly selected row
                 }
                 KeyCode::Down | KeyCode::Char('j') => {
-                    if let Some(s) = self.selected_session() {
-                        if self.detail_proc_idx + 1 < s.processes.len() {
-                            self.detail_proc_idx += 1;
-                        }
-                    }
+                    self.move_sel(1);
                 }
                 _ => {}
             }
@@ -262,6 +345,7 @@ impl App {
             KeyCode::Char('F') => {
                 self.sort = self.sort.next();
                 self.status = format!("sort: {:?}", self.sort);
+                self.clamp_selection();
             }
             KeyCode::Char('t') => {
                 self.view = if self.view == ViewMode::Tree {
@@ -291,61 +375,72 @@ impl App {
             KeyCode::Char('z') => {
                 self.compact = !self.compact;
             }
-            KeyCode::Up | KeyCode::Char('k') => {
-                self.selected = self.selected.saturating_sub(1);
-                self.table_state.select(Some(self.selected));
+            KeyCode::Up | KeyCode::Char('k') => self.move_sel(-1),
+            KeyCode::Down | KeyCode::Char('j') => self.move_sel(1),
+            KeyCode::Home => {
+                self.selected = 0;
+                self.table_state.select(Some(0));
+                self.remember_sticky();
             }
-            KeyCode::Down | KeyCode::Char('j') => {
-                let n = self.visible_sessions().len();
-                if n > 0 && self.selected + 1 < n {
-                    self.selected += 1;
+            KeyCode::End => {
+                let n = self.nav_rows().len();
+                if n > 0 {
+                    self.selected = n - 1;
                     self.table_state.select(Some(self.selected));
+                    self.remember_sticky();
                 }
             }
-            KeyCode::Tab => {
-                if let Some(id) = self.selected_session_id() {
-                    if !self.expanded.remove(&id) {
-                        self.expanded.insert(id);
+            KeyCode::Tab | KeyCode::Right | KeyCode::Char('l') | KeyCode::Char(' ') => {
+                self.toggle_expand_selected();
+            }
+            KeyCode::Left | KeyCode::Char('h') => {
+                // Collapse parent session when on a process, else collapse selected session.
+                if let Some(NavRow::Process { session_idx, .. }) = self.current_row() {
+                    let id = self.snap.sessions[session_idx].id.clone();
+                    self.expanded.remove(&id);
+                    // Jump selection to session header
+                    if let Some(i) = self.nav_rows().iter().position(
+                        |r| matches!(r, NavRow::Session { session_idx: si } if *si == session_idx),
+                    ) {
+                        self.selected = i;
+                        self.table_state.select(Some(i));
                     }
+                    self.remember_sticky();
+                } else {
+                    self.toggle_expand_selected();
                 }
             }
             KeyCode::Enter | KeyCode::Char('d') => {
                 self.detail = true;
-                self.detail_proc_idx = 0;
             }
-            KeyCode::Char('c') => {
-                if let Some(pid) = self.selected_session().and_then(|s| {
-                    s.processes
-                        .iter()
-                        .find(|p| p.windows_image.is_some())
-                        .map(|p| p.pid)
-                        .or_else(|| s.processes.first().map(|p| p.pid))
-                }) {
-                    self.kill_modal = Some(KillModal {
-                        kind: KillModalKind::Process,
-                        method_idx: 0,
-                        session_id: self.selected_session_id().unwrap_or_default(),
-                        pid: Some(pid),
-                    });
-                }
-            }
+            KeyCode::Char('c') | KeyCode::Delete => self.open_process_kill(),
             KeyCode::Char('K') => {
                 if let Some(id) = self.selected_session_id() {
+                    let name = self
+                        .selected_session()
+                        .map(|s| s.name.clone())
+                        .unwrap_or_else(|| id.clone());
                     self.kill_modal = Some(KillModal {
                         kind: KillModalKind::Session,
                         method_idx: 0,
                         session_id: id,
                         pid: None,
+                        label: name,
                     });
                 }
             }
             KeyCode::Char('P') => {
                 if let Some(id) = self.selected_session_id() {
+                    let name = self
+                        .selected_session()
+                        .map(|s| s.name.clone())
+                        .unwrap_or_else(|| id.clone());
                     self.kill_modal = Some(KillModal {
                         kind: KillModalKind::Prefix,
                         method_idx: 0,
                         session_id: id,
                         pid: None,
+                        label: name,
                     });
                 }
             }
@@ -358,20 +453,81 @@ impl App {
         false
     }
 
+    fn move_sel(&mut self, delta: isize) {
+        let n = self.nav_rows().len() as isize;
+        if n == 0 {
+            return;
+        }
+        let next = (self.selected as isize + delta).clamp(0, n - 1) as usize;
+        self.selected = next;
+        self.table_state.select(Some(self.selected));
+        self.remember_sticky();
+    }
+
+    fn toggle_expand_selected(&mut self) {
+        let Some(row) = self.current_row() else {
+            return;
+        };
+        let session_idx = match row {
+            NavRow::Session { session_idx } | NavRow::Process { session_idx, .. } => session_idx,
+        };
+        let id = self.snap.sessions[session_idx].id.clone();
+        if !self.expanded.remove(&id) {
+            self.expanded.insert(id);
+        }
+        self.clamp_selection();
+    }
+
+    fn open_process_kill(&mut self) {
+        let Some(row) = self.current_row() else {
+            return;
+        };
+        match row {
+            NavRow::Process {
+                session_idx,
+                proc_idx,
+            } => {
+                let s = &self.snap.sessions[session_idx];
+                let p = &s.processes[proc_idx];
+                self.kill_modal = Some(KillModal {
+                    kind: KillModalKind::Process,
+                    method_idx: 0,
+                    session_id: s.id.clone(),
+                    pid: Some(p.pid),
+                    label: format!("{} ({})", p.display_name(), p.pid),
+                });
+            }
+            NavRow::Session { .. } => {
+                self.status =
+                    "select a process row (Tab to expand, ↑↓ to move), then c to kill".into();
+            }
+        }
+    }
+
     fn selected_session_id(&self) -> Option<String> {
-        let vis = self.visible_sessions();
-        vis.get(self.selected)
-            .map(|&i| self.snap.sessions[i].id.clone())
+        match self.current_row()? {
+            NavRow::Session { session_idx } | NavRow::Process { session_idx, .. } => {
+                Some(self.snap.sessions[session_idx].id.clone())
+            }
+        }
     }
 
     fn selected_session(&self) -> Option<&winetop_core::Session> {
-        let vis = self.visible_sessions();
-        vis.get(self.selected).map(|&i| &self.snap.sessions[i])
+        match self.current_row()? {
+            NavRow::Session { session_idx } | NavRow::Process { session_idx, .. } => {
+                Some(&self.snap.sessions[session_idx])
+            }
+        }
     }
 
-    fn selected_proc_pid(&self) -> Option<u32> {
-        self.selected_session()
-            .and_then(|s| s.processes.get(self.detail_proc_idx).map(|p| p.pid))
+    fn selected_process(&self) -> Option<&winetop_core::WineProcess> {
+        match self.current_row()? {
+            NavRow::Process {
+                session_idx,
+                proc_idx,
+            } => self.snap.sessions[session_idx].processes.get(proc_idx),
+            NavRow::Session { .. } => None,
+        }
     }
 
     fn do_kill(&mut self, modal: KillModal) {
@@ -387,6 +543,7 @@ impl App {
         match kill::execute(&req, &self.snap) {
             Ok(r) => {
                 self.status = r.message;
+                self.detail = false;
                 self.refresh();
             }
             Err(e) => self.status = format!("kill failed: {e}"),
@@ -449,22 +606,36 @@ impl App {
     }
 
     fn draw_footer(&self, frame: &mut Frame, area: Rect) {
-        let hints = key_hint(
-            &[
-                ("↑↓", "select"),
-                ("Tab", "expand"),
-                ("/", "filter"),
-                ("d", "detail"),
-                ("K", "kill sess"),
-                ("P", "wineserver"),
-                ("t", "tree"),
-                ("o", "orphans"),
-                ("T", "theme"),
-                ("?", "help"),
-                ("q", "quit"),
-            ],
-            self.theme.footer(),
-        );
+        let on_proc = matches!(self.current_row(), Some(NavRow::Process { .. }));
+        let hints = if on_proc {
+            key_hint(
+                &[
+                    ("↑↓", "process"),
+                    ("c", "kill proc"),
+                    ("d", "detail"),
+                    ("←", "collapse"),
+                    ("K", "kill sess"),
+                    ("P", "wineserver"),
+                    ("?", "help"),
+                    ("q", "quit"),
+                ],
+                self.theme.footer(),
+            )
+        } else {
+            key_hint(
+                &[
+                    ("↑↓", "select"),
+                    ("Tab/→", "expand"),
+                    ("/", "filter"),
+                    ("d", "detail"),
+                    ("c", "kill proc"),
+                    ("K", "kill sess"),
+                    ("?", "help"),
+                    ("q", "quit"),
+                ],
+                self.theme.footer(),
+            )
+        };
         let status = if self.status.is_empty() {
             hints
         } else {
@@ -474,8 +645,8 @@ impl App {
     }
 
     fn draw_sessions(&mut self, frame: &mut Frame, area: Rect) {
-        let vis = self.visible_sessions();
-        if vis.is_empty() {
+        let nav = self.nav_rows();
+        if nav.is_empty() {
             let msg = Paragraph::new(vec![
                 Line::from(""),
                 Line::from(Span::styled(
@@ -492,74 +663,88 @@ impl App {
         }
 
         let mut rows = Vec::new();
-        for &idx in &vis {
-            let s = &self.snap.sessions[idx];
-            let ws = if s.wineserver_alive { "●" } else { "○" };
-            let spark = self
-                .cpu_history
-                .get(&s.id)
-                .map(|h| sparkline(h, 12))
-                .unwrap_or_default();
-            let app = s
-                .steam_app_id
-                .map(|id| format!("#{id}"))
-                .unwrap_or_default();
-            let name = if app.is_empty() {
-                s.name.clone()
-            } else {
-                format!("{} {app}", s.name)
-            };
-            let expanded = self.expanded.contains(&s.id);
-            let marker = if expanded { "▼" } else { "▶" };
-            rows.push(
-                Row::new(vec![
-                    Cell::from(format!("{marker} {}", s.source.as_str()))
-                        .style(self.theme.source(s.source)),
-                    Cell::from(name),
-                    Cell::from(s.short_prefix()),
-                    Cell::from(format!("{:.0}%", s.cpu_percent)),
-                    Cell::from(format_bytes(s.rss_bytes)),
-                    Cell::from(s.process_count().to_string()),
-                    Cell::from(ws.to_string()),
-                    Cell::from(spark).style(self.theme.spark()),
-                ])
-                .height(1),
-            );
-            if expanded {
-                for p in &s.processes {
-                    let label = p.windows_image.clone().unwrap_or_else(|| p.name.clone());
-                    let root = if p.is_session_root { " *" } else { "" };
+        for row in &nav {
+            match *row {
+                NavRow::Session { session_idx } => {
+                    let s = &self.snap.sessions[session_idx];
+                    let ws = if s.wineserver_alive { "●" } else { "○" };
+                    let spark = self
+                        .cpu_history
+                        .get(&s.id)
+                        .map(|h| sparkline(h, 10))
+                        .unwrap_or_default();
+                    let app = s
+                        .steam_app_id
+                        .map(|id| format!("#{id}"))
+                        .unwrap_or_default();
+                    let name = if app.is_empty() {
+                        s.name.clone()
+                    } else {
+                        format!("{} {app}", s.name)
+                    };
+                    let expanded = self.expanded.contains(&s.id);
+                    let marker = if expanded { "▼" } else { "▶" };
+                    rows.push(
+                        Row::new(vec![
+                            Cell::from(format!("{marker} {}", s.source.as_str()))
+                                .style(self.theme.source(s.source)),
+                            Cell::from(name),
+                            Cell::from("—"),
+                            Cell::from("—"),
+                            Cell::from(format!("{:.0}%", s.cpu_percent)),
+                            Cell::from(format_bytes(s.rss_bytes)),
+                            Cell::from(format!("{ws} {}", s.process_count())),
+                            Cell::from(format!("{} {}", s.short_prefix(), spark))
+                                .style(self.theme.spark()),
+                        ])
+                        .style(Style::default().add_modifier(Modifier::BOLD)),
+                    );
+                }
+                NavRow::Process {
+                    session_idx,
+                    proc_idx,
+                } => {
+                    let s = &self.snap.sessions[session_idx];
+                    let p = &s.processes[proc_idx];
+                    let last = proc_idx + 1 == s.processes.len();
+                    let branch = if last { "└─" } else { "├─" };
+                    let root = if p.is_session_root { "*" } else { " " };
+                    let detail = truncate(&p.detail(), 56);
                     rows.push(Row::new(vec![
-                        Cell::from(""),
-                        Cell::from(format!("  ├─ {label}{root}")),
-                        Cell::from(format!("pid {}", p.pid)),
+                        Cell::from(format!("  {branch}{}", p.kind.as_str())),
+                        Cell::from(format!("{root}{}", p.display_name())),
+                        Cell::from(p.pid.to_string()),
+                        Cell::from(p.ppid.to_string()),
                         Cell::from(format!("{:.0}%", p.cpu_percent)),
                         Cell::from(format_bytes(p.rss_bytes)),
-                        Cell::from(p.kind.as_str()),
                         Cell::from(p.state.clone()),
-                        Cell::from(""),
+                        Cell::from(detail),
                     ]));
                 }
             }
         }
 
-        let header = Row::new(["SRC", "SESSION", "PREFIX", "CPU", "RSS", "N", "WS", "HIST"])
+        let header = Row::new(["KIND", "NAME", "PID", "PPID", "CPU", "RSS", "ST", "DETAIL"])
             .style(Style::default().add_modifier(Modifier::BOLD));
         let table = Table::new(
             rows,
             [
-                Constraint::Length(10),
-                Constraint::Min(20),
-                Constraint::Min(16),
+                Constraint::Length(12),
+                Constraint::Length(22),
+                Constraint::Length(8),
+                Constraint::Length(8),
                 Constraint::Length(5),
                 Constraint::Length(7),
-                Constraint::Length(3),
-                Constraint::Length(2),
-                Constraint::Length(12),
+                Constraint::Length(6),
+                Constraint::Min(20),
             ],
         )
         .header(header)
-        .block(Block::default().borders(Borders::ALL).title("sessions"))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("sessions  (Tab expand · ↑↓ processes · c kill)"),
+        )
         .row_highlight_style(self.theme.selected())
         .highlight_symbol("> ");
 
@@ -606,22 +791,20 @@ impl App {
         let lines = vec![
             Line::from(Span::styled(" winetop keymap", self.theme.header())),
             Line::from(""),
-            Line::from(" q          quit"),
-            Line::from(" r          refresh"),
-            Line::from(" /          filter sessions"),
-            Line::from(" F          cycle sort (cpu/rss/name/source)"),
-            Line::from(" Tab        expand/collapse session"),
-            Line::from(" d/Enter    detail drawer"),
-            Line::from(" c          kill process (confirm)"),
-            Line::from(" K          kill session (confirm)"),
+            Line::from(" ↑↓ / j k   move selection (sessions and processes)"),
+            Line::from(" Tab / →    expand session (show processes)"),
+            Line::from(" ← / h      collapse session"),
+            Line::from(" c / Del    kill selected process (confirm)"),
+            Line::from(" K          kill whole session (confirm)"),
             Line::from(" P          wineserver -k for prefix (confirm)"),
-            Line::from(" t          process tree"),
-            Line::from(" o          orphans"),
-            Line::from(" T          cycle theme"),
-            Line::from(" z          compact footer"),
+            Line::from(" d / Enter  detail drawer for selection"),
+            Line::from(" /          filter (name, pid, cmdline)"),
+            Line::from(" F          cycle sort"),
+            Line::from(" t / o / ?  tree / orphans / help"),
+            Line::from(" T          theme · z compact · r refresh · q quit"),
             Line::from(""),
-            Line::from(" Steam games: prefer SIGTERM reaper, then wineserver -k."),
-            Line::from(" Never kills the Steam client."),
+            Line::from(" DETAIL column shows Windows path + args to tell"),
+            Line::from(" duplicate names (e.g. many Battle.net.exe) apart."),
         ];
         frame.render_widget(
             Paragraph::new(lines).block(Block::default().borders(Borders::ALL).title("help")),
@@ -633,7 +816,6 @@ impl App {
         let Some(s) = self.selected_session() else {
             return;
         };
-        let p = s.processes.get(self.detail_proc_idx);
         let mut lines = vec![
             Line::from(format!(
                 " Source     {} {}",
@@ -663,28 +845,51 @@ impl App {
             )),
             Line::from(""),
         ];
-        if let Some(p) = p {
-            lines.push(Line::from(format!(
-                " Process    {}  pid {}  ppid {}",
-                p.windows_image.as_deref().unwrap_or(&p.name),
-                p.pid,
-                p.ppid
+        if let Some(p) = self.selected_process() {
+            lines.push(Line::from(Span::styled(
+                format!(" Process    {} [{}]", p.display_name(), p.kind.as_str()),
+                self.theme.header(),
             )));
             lines.push(Line::from(format!(
-                " CPU/RSS    {:.1}% · {} · {} threads · {}",
+                " PID/PPID   {} / {}   state {}   root={}",
+                p.pid, p.ppid, p.state, p.is_session_root
+            )));
+            lines.push(Line::from(format!(
+                " CPU/RSS    {:.1}% · {} · {} threads",
                 p.cpu_percent,
                 format_bytes(p.rss_bytes),
-                p.threads,
-                p.state
+                p.threads
             )));
+            if let Some(ref exe) = p.exe_path {
+                lines.push(Line::from(format!(" Exe        {}", exe.display())));
+            }
+            if let Some(ref cwd) = p.cwd {
+                lines.push(Line::from(format!(" Cwd        {}", cwd.display())));
+            }
+            lines.push(Line::from(format!(" Detail     {}", p.detail())));
             lines.push(Line::from(format!(
                 " Cmdline    {}",
-                truncate(&p.cmdline, 100)
+                truncate(&p.cmdline, 120)
             )));
             lines.push(Line::from(format!(
                 " Environ    {}",
                 p.environ_keys.join(" ")
             )));
+        } else {
+            lines.push(Line::from(
+                " (session selected — expand and pick a process for PID details)",
+            ));
+            lines.push(Line::from(" Top processes:"));
+            for p in s.processes.iter().take(8) {
+                lines.push(Line::from(format!(
+                    "   {:>7}  {:<18}  {:>5.0}%  {:>6}  {}",
+                    p.pid,
+                    truncate(p.display_name(), 18),
+                    p.cpu_percent,
+                    format_bytes(p.rss_bytes),
+                    truncate(&p.detail(), 40)
+                )));
+            }
         }
         for n in &s.notes {
             lines.push(Line::from(Span::styled(
@@ -694,7 +899,7 @@ impl App {
         }
         lines.push(Line::from(""));
         lines.push(Line::from(
-            " Esc/d close · c kill process · ↑↓ switch process",
+            " Esc/d close · c kill process · ↑↓ move selection",
         ));
         draw_modal(frame, area, " detail ", lines, self.theme.header());
     }
@@ -713,13 +918,8 @@ impl App {
             KillModalKind::Prefix => vec!["(1) wineserver -k", "(2) SIGKILL all in session"],
             KillModalKind::Process => vec!["(1) SIGTERM", "(2) SIGKILL"],
         };
-        let session_name = self
-            .snap
-            .find_session(&modal.session_id)
-            .map(|s| s.name.clone())
-            .unwrap_or_else(|| modal.session_id.clone());
         let mut lines = vec![
-            Line::from(format!(" Target: {session_name}")),
+            Line::from(format!(" Target: {}", modal.label)),
             Line::from(match modal.pid {
                 Some(pid) => format!(" PID: {pid}"),
                 None => format!(" Kind: {:?}", modal.kind),

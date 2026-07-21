@@ -48,11 +48,12 @@ winetop dump > snap.json
 
 | Key | Action |
 |-----|--------|
-| `↑↓` / `j` `k` | Navigate |
-| `Tab` | Expand session |
-| `/` | Filter |
+| `↑↓` / `j` `k` | Move across sessions **and** processes |
+| `Tab` / `→` | Expand session (process rows) |
+| `←` | Collapse session |
+| `/` | Filter (name, pid, cmdline) |
 | `d` / Enter | Detail |
-| `c` | Kill process |
+| `c` / `Del` | Kill **selected process** |
 | `K` | Kill session |
 | `P` | `wineserver -k` |
 | `t` | Tree |
@@ -60,6 +61,8 @@ winetop dump > snap.json
 | `T` | Theme |
 | `?` | Help |
 | `q` | Quit |
+
+Expanded process rows show **PID**, **PPID**, kind, and a **DETAIL** column (Windows path + args) so duplicates like many `Battle.net.exe` are distinguishable.
 
 ```
  winetop 0.1.0  │  3 sessions  │  12 procs  │  18% cpu  │  4.2G rss

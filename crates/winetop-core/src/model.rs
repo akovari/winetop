@@ -84,6 +84,18 @@ pub struct WineProcess {
     pub lutris_uuid: Option<String>,
 }
 
+impl WineProcess {
+    /// Display name: Windows image if known, else process name.
+    pub fn display_name(&self) -> &str {
+        self.windows_image.as_deref().unwrap_or(&self.name)
+    }
+
+    /// Short cmdline / path+args to distinguish duplicate images.
+    pub fn detail(&self) -> String {
+        crate::util::cmdline_detail(&self.cmdline)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Session {
     pub id: String,
