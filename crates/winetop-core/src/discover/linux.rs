@@ -84,15 +84,15 @@ fn parse_stat(stat: &str) -> Option<(u32, char, u64, u64, u64, u32)> {
     // fields: 5=pgrp ... we need utime(14), stime(15), threads(20), starttime(22)
     // After state/ppid we are at field 5 in man proc.
     let rest: Vec<&str> = parts.collect();
-    // rest[0] is pgrp (field 5), so:
-    // utime = rest[11] (field 14), stime = rest[12], threads = rest[17], starttime = rest[19]
-    if rest.len() < 20 {
+    // After (pid,comm,state,ppid), rest[0] is field 5 (pgrp).
+    // utime=14 → rest[9], stime=15 → rest[10], num_threads=20 → rest[15], starttime=22 → rest[17]
+    if rest.len() < 18 {
         return None;
     }
-    let utime: u64 = rest[11].parse().ok()?;
-    let stime: u64 = rest[12].parse().ok()?;
-    let threads: u32 = rest[17].parse().ok()?;
-    let starttime: u64 = rest[19].parse().ok()?;
+    let utime: u64 = rest[9].parse().ok()?;
+    let stime: u64 = rest[10].parse().ok()?;
+    let threads: u32 = rest[15].parse().ok()?;
+    let starttime: u64 = rest[17].parse().ok()?;
     Some((ppid, state, utime, stime, starttime, threads))
 }
 
