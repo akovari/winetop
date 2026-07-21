@@ -28,13 +28,17 @@ curl --proto '=https' --tlsv1.2 -LsSf \
 
 Or: `cargo binstall winetop`
 
-See [dist/](dist/) for **Debian/Ubuntu** (`.deb` + packaging template), AUR, Homebrew, Copr, and [flake.nix](flake.nix) for Nix.
-
 ```bash
-# Debian/Ubuntu: build a .deb from a GitHub Release (after v0.1.0 is tagged)
+# Debian/Ubuntu PPA (once packages are published)
+sudo add-apt-repository ppa:kovariadam/winetop
+sudo apt update && sudo apt install winetop
+
+# Or build a .deb from a GitHub Release
 ./dist/debian/build-deb-from-release.sh 0.1.0 amd64
 sudo apt install ./dist/debian/winetop_0.1.0-1_amd64.deb
 ```
+
+See [dist/](dist/) for **Debian/Ubuntu** (PPA + `.deb`), AUR, Homebrew, Copr, and [flake.nix](flake.nix) for Nix.
 
 ## Usage
 
