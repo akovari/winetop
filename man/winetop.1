@@ -1,0 +1,44 @@
+.TH WINETOP 1 "July 2026" "winetop 0.1.0" "User Commands"
+.SH NAME
+winetop \- htop for Wine prefixes
+.SH SYNOPSIS
+.B winetop
+[\fIOPTIONS\fR]
+.br
+.B winetop
+\fICOMMAND\fR
+.SH DESCRIPTION
+winetop discovers Wine/Proton-related processes, groups them into sessions
+(Steam AppId, Lutris, Heroic, Bottles, or plain WINEPREFIX), shows resource
+usage, and stops the right unit safely.
+.SH COMMANDS
+.TP
+.B list
+Print sessions as a table (or JSON with \fB--json\fR).
+.TP
+.B tree
+Print a process tree of Wine-related PIDs.
+.TP
+.B orphans
+List lonely wineservers, zombies, and leftover sessions.
+.TP
+.B kill
+Stop a process (\fB--pid\fR), Steam game (\fB--appid\fR), prefix (\fB--prefix\fR),
+or session id (\fB--session\fR).
+.TP
+.B dump
+Write a full JSON snapshot to stdout.
+.SH OPTIONS
+.TP
+.B \-\-refresh\-ms \fIN\fR
+TUI refresh interval (default 1000).
+.TP
+.B \-v, \-\-verbose
+Debug logging on stderr.
+.SH TUI KEYS
+See winetop help screen (\fB?\fR) for the full keymap.
+.SH SEE ALSO
+.BR wineserver (1),
+.BR wine (1)
+.SH BUGS
+https://github.com/akovari/winetop/issues
