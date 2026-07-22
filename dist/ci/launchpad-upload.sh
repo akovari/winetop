@@ -11,6 +11,8 @@ rm -rf debian vendor .cargo
 cp -a dist/debian debian
 # packaging lives under dist/; drop helper scripts from the debian/ tree
 rm -f debian/build-deb-from-release.sh debian/README.md debian/winetop.install
+# compat level comes from Build-Depends: debhelper-compat (= 13)
+rm -f debian/compat
 
 # Refresh changelog version
 cat >debian/changelog <<EOF

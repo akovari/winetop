@@ -247,7 +247,10 @@ jobs:
       - name: Install copr-cli
         run: |
           sudo apt-get update
-          sudo apt-get install -y copr-cli python3-copr
+          sudo apt-get install -y python3-pip python3-setuptools
+          # Ubuntu does not package copr-cli; install from PyPI
+          pip3 install --user 'copr-cli'
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Configure & build on Copr
         env:
