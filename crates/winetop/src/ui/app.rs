@@ -895,9 +895,7 @@ impl App {
             )));
         }
         lines.push(Line::from(""));
-        lines.push(Line::from(
-            " Esc/d close · k kill · K session · ↑↓ move",
-        ));
+        lines.push(Line::from(" Esc/d close · k kill · K session · ↑↓ move"));
         draw_modal(frame, area, " detail ", lines, self.theme.header());
     }
 
