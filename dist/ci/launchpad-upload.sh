@@ -23,8 +23,13 @@ winetop (${VERSION}-1) noble; urgency=medium
  -- Adam Kovari <adam@kovari.eu>  $(date -Ru)
 EOF
 
-# Vendor crates for offline Launchpad builders
+# Vendor crates for offline Launchpad builders (Noble ships cargo 1.75).
 cargo vendor vendor
+if grep -R --include='Cargo.toml' -l 'edition = "2024"' vendor >/dev/null 2>&1; then
+  echo "error: vendored crates require edition2024; Noble cargo 1.75 cannot parse them." >&2
+  echo "Pin dependencies so 'cargo +1.75.0 build -p winetop' succeeds, then re-vendor." >&2
+  exit 1
+fi
 mkdir -p .cargo
 cat >.cargo/config.toml <<'EOF'
 [source.crates-io]

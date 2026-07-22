@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.4 — 2026-07-22
+
+- Pin clap/rusqlite/tempfile (and lockfile) so Ubuntu 24.04 Launchpad builds with rustc 1.75
+
 ## 0.1.3 — 2026-07-22
 
 - Fix Copr SRPM: remove invalid RPM `Maintainer` tag
