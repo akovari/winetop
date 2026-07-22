@@ -30,6 +30,12 @@ if grep -R --include='Cargo.toml' -l 'edition = "2024"' vendor >/dev/null 2>&1; 
   echo "Pin dependencies so 'cargo +1.75.0 build -p winetop' succeeds, then re-vendor." >&2
   exit 1
 fi
+# dpkg-source / Launchpad commonly drop static libs (*.a) from the uploaded tree.
+# Those leftover checksum entries then break `cargo --offline`. Prune unused Windows/vcpkg
+# binaries and rewrite vendor checksums before packaging.
+find vendor -type f \( -name '*.a' -o -name '*.lib' \) -delete
+rm -rf vendor/vcpkg/test-data
+python3 dist/ci/rewrite-vendor-checksums.py vendor
 mkdir -p .cargo
 cat >.cargo/config.toml <<'EOF'
 [source.crates-io]

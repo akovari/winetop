@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.6 — 2026-07-22
+
+- Launchpad: prune vendored `*.a` / vcpkg test-data and rewrite checksums (dpkg drops static libs)
+
 ## 0.1.5 — 2026-07-22
 
 - Launchpad: keep `vendor/**/Cargo.toml.orig` (dh_clean was deleting them)

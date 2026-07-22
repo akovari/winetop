@@ -1,5 +1,5 @@
 Name:           winetop
-Version:        0.1.5
+Version:        0.1.6
 Release:        1%{?dist}
 Summary:        htop for Wine prefixes
 
@@ -33,6 +33,9 @@ install -D -m 0644 man/winetop.1 %{buildroot}%{_mandir}/man1/winetop.1
 %{_mandir}/man1/winetop.1*
 
 %changelog
+* Wed Jul 22 2026 Adam Kovari <adam@kovari.eu> - 0.1.6-1
+- Prune vendored static libs for Debian/Launchpad source uploads
+
 * Wed Jul 22 2026 Adam Kovari <adam@kovari.eu> - 0.1.5-1
 - Preserve vendored Cargo.toml.orig for Debian builds
 
