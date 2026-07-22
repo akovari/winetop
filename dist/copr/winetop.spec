@@ -1,6 +1,6 @@
 Maintainer: Adam Kovari <adam@kovari.eu>
 Name:           winetop
-Version:        0.1.0
+Version:        0.1.2
 Release:        1%{?dist}
 Summary:        htop for Wine prefixes
 
@@ -34,5 +34,8 @@ install -D -m 0644 man/winetop.1 %{buildroot}%{_mandir}/man1/winetop.1
 %{_mandir}/man1/winetop.1*
 
 %changelog
+* Wed Jul 22 2026 Adam Kovari <adam@kovari.eu> - 0.1.2-1
+- Fix Copr SCM build invocation
+
 * Tue Jul 21 2026 Adam Kovari <adam@kovari.eu> - 0.1.0-1
 - Initial package

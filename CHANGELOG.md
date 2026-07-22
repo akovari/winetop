@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.2 — 2026-07-22
+
+- Fix Copr `buildscm` (drop invalid `--wait`, enable network for cargo)
+
 ## 0.1.1 — 2026-07-22
 
 - Fix release CI: install `copr-cli` from PyPI, drop duplicate Debian `compat`

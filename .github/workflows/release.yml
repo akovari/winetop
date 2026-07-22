@@ -259,7 +259,6 @@ jobs:
           COPR_USERNAME: ${{ secrets.COPR_USERNAME }}
         run: |
           set -euo pipefail
-          VER="${{ needs.meta.outputs.version }}"
           mkdir -p ~/.config
           {
             echo '[copr-cli]'
@@ -268,18 +267,15 @@ jobs:
             echo "token = ${COPR_TOKEN}"
             echo 'copr_url = https://copr.fedorainfracloud.org'
           } > ~/.config/copr
-          sed -i "s/^Version:.*/Version:        ${VER}/" dist/copr/winetop.spec
           PROJECT="${COPR_USERNAME}/winetop"
-          echo "Building on Copr project ${PROJECT}"
-          if ! copr-cli buildscm "$PROJECT" \
+          TAG="${{ needs.meta.outputs.tag }}"
+          echo "Building on Copr project ${PROJECT} from ${TAG}"
+          # Default waits for completion. Network needed for cargo fetch.
+          copr-cli buildscm "$PROJECT" \
               --clone-url "https://github.com/akovari/winetop.git" \
-              --commit "${{ needs.meta.outputs.tag }}" \
+              --commit "$TAG" \
               --spec dist/copr/winetop.spec \
-              --wait; then
-            echo "buildscm failed; trying tarball URL build"
-            copr-cli build "$PROJECT" \
-              "https://github.com/akovari/winetop/archive/refs/tags/${{ needs.meta.outputs.tag }}.tar.gz"
-          fi
+              --enable-net on
 
   launchpad:
     needs: [meta, release]
