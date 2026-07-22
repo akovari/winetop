@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.3 — 2026-07-22
+
+- Fix Copr SRPM: remove invalid RPM `Maintainer` tag
+
 ## 0.1.2 — 2026-07-22
 
 - Fix Copr `buildscm` (drop invalid `--wait`, enable network for cargo)
