@@ -4,7 +4,7 @@ members = ["crates/winetop-core", "crates/winetop"]
 default-members = ["crates/winetop"]
 
 [workspace.package]
-version = "0.1.4"
+version = "0.1.5"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/akovari/winetop"
@@ -13,7 +13,7 @@ authors = ["akovari"]
 rust-version = "1.75"
 
 [workspace.dependencies]
-winetop-core = { path = "crates/winetop-core", version = "0.1.4" }
+winetop-core = { path = "crates/winetop-core", version = "0.1.5" }
 # Pinned for Ubuntu 24.04 (Noble) rustc/cargo 1.75 used by Launchpad PPA builds.
 clap = { version = "=4.5.40", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }

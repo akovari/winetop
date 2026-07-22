@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.5 — 2026-07-22
+
+- Launchpad: keep `vendor/**/Cargo.toml.orig` (dh_clean was deleting them)
+
 ## 0.1.4 — 2026-07-22
 
 - Pin clap/rusqlite/tempfile (and lockfile) so Ubuntu 24.04 Launchpad builds with rustc 1.75

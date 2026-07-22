@@ -66,6 +66,10 @@ override_dh_auto_test:
 override_dh_auto_clean:
 	cargo clean || true
 	rm -rf $(CARGO_HOME)
+
+# dh_clean deletes *.orig by default; cargo vendor checksums need vendor/**/Cargo.toml.orig
+override_dh_clean:
+	dh_clean -Xvendor
 EOF
 chmod +x debian/rules
 
