@@ -29,6 +29,8 @@ Or: GitHub → Actions → Release → Run workflow → enter `v0.1.0`.
 
 ## Install after release
 
+End-user install matrix: [../README.md](../README.md#install).
+
 ```bash
 # GitHub installer
 curl --proto '=https' --tlsv1.2 -LsSf \
