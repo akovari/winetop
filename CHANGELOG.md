@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.0 — 2026-07-23
+
+- Add `winetop status` for status bars (Waybar JSON, double CPU sample, hottest/rss/focused pick)
+- Document Waybar drop-in under `dist/waybar/`
+
 ## 0.1.6 — 2026-07-22
 
 - Launchpad: prune vendored `*.a` / vcpkg test-data and rewrite checksums (dpkg drops static libs)

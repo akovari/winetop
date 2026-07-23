@@ -8,7 +8,7 @@
 - Steam `reaper` detection (`SteamLaunch AppId=…`) — stop a game without killing Steam
 - Live TUI: expand sessions, CPU/RSS, sparklines, themes, detail drawer, orphans
 - Safe kill ladder: process SIGTERM → session reaper → `wineserver -k` → SIGKILL
-- Scriptable CLI: `list`, `tree`, `kill`, `orphans`, `dump` (+ `--json`)
+- Scriptable CLI: `list`, `tree`, `kill`, `orphans`, `dump`, `status` (Waybar)
 - Name enrichment from Steam `appmanifest_*.acf`, Lutris `pga.db`/yml, Heroic, Bottles
 
 ## Install
@@ -52,7 +52,13 @@ winetop kill --appid 1091500
 winetop kill --prefix ~/.wine
 winetop kill --pid 12345 --signal term
 winetop dump > snap.json
+winetop status --format waybar          # Waybar custom module JSON
+winetop status --pick focused           # prefer focused game window
 ```
+
+### Waybar
+
+See [dist/waybar/README.md](dist/waybar/README.md) for a drop-in `custom/winetop` module.
 
 ### TUI keys
 

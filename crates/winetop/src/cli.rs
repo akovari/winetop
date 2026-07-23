@@ -43,6 +43,33 @@ pub enum Command {
     },
     /// Dump full session snapshot as JSON
     Dump,
+    /// Status-bar friendly snapshot of the current game/session
+    Status {
+        /// Output format
+        #[arg(long, value_enum, default_value_t = StatusFormatArg::Waybar)]
+        format: StatusFormatArg,
+        /// How to choose the session
+        #[arg(long, value_enum, default_value_t = PickArg::Hottest)]
+        pick: PickArg,
+        /// Sleep between two CPU samples (0 = single scan, CPU≈0)
+        #[arg(long, default_value_t = 250)]
+        sample_ms: u64,
+        /// If >0, print repeatedly (watch mode)
+        #[arg(long, default_value_t = 0)]
+        interval_ms: u64,
+        /// Include opaque/helper sessions
+        #[arg(long)]
+        include_opaque: bool,
+        /// Ignore sessions below this RSS (MiB)
+        #[arg(long, default_value_t = 64)]
+        min_rss_mib: u64,
+        /// Pin to a Steam AppId
+        #[arg(long)]
+        appid: Option<u32>,
+        /// Pin to a session id
+        #[arg(long)]
+        session: Option<String>,
+    },
     /// Kill a process, session, or prefix
     Kill {
         #[arg(long)]
@@ -73,6 +100,22 @@ pub enum MethodArg {
     Reaper,
     Wineserver,
     Hard,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum, Default)]
+pub enum StatusFormatArg {
+    Text,
+    Json,
+    #[default]
+    Waybar,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum, Default)]
+pub enum PickArg {
+    #[default]
+    Hottest,
+    Rss,
+    Focused,
 }
 
 pub fn cmd_list(json: bool) -> Result<(), Box<dyn std::error::Error>> {

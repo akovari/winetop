@@ -7,11 +7,16 @@ pub mod error;
 pub mod kill;
 pub mod metrics;
 pub mod model;
+pub mod status;
 pub mod util;
 
 pub use error::{Error, Result};
 pub use kill::{KillMethod, KillRequest, KillResult};
 pub use model::{ProcessKind, Session, SessionSnapshot, Source, WineProcess};
+pub use status::{
+    build_report, parse_steam_app_class, sample_snapshot, shorten_name, source_icon, FocusHint,
+    PickPolicy, StatusFilter, StatusReport,
+};
 
 use enrich::Enricher;
 use metrics::CpuTracker;

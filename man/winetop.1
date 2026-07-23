@@ -1,4 +1,4 @@
-.TH WINETOP 1 "July 2026" "winetop 0.1.0" "User Commands"
+.TH WINETOP 1 "July 2026" "winetop 0.2.0" "User Commands"
 .SH NAME
 winetop \- htop for Wine prefixes
 .SH SYNOPSIS
@@ -21,6 +21,11 @@ Print a process tree of Wine-related PIDs.
 .TP
 .B orphans
 List lonely wineservers, zombies, and leftover sessions.
+.TP
+.B status
+Emit a single-session snapshot for status bars. Default format is Waybar JSON.
+Uses a double CPU sample (\fB--sample-ms\fR, default 250). Pick policy:
+\fBhottest\fR (default), \fBrss\fR, or \fBfocused\fR (Sway/Hyprland window hints).
 .TP
 .B kill
 Stop a process (\fB--pid\fR), Steam game (\fB--appid\fR), prefix (\fB--prefix\fR),

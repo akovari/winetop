@@ -1,9 +1,11 @@
 mod cli;
+mod status;
 mod ui;
 
 use clap::Parser;
 use cli::{Cli, Command};
 use tracing_subscriber::EnvFilter;
+use winetop_core::PickPolicy;
 
 fn main() {
     let cli = Cli::parse();
@@ -33,6 +35,25 @@ fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
         Some(Command::Tree { json }) => cli::cmd_tree(json)?,
         Some(Command::Orphans { json }) => cli::cmd_orphans(json)?,
         Some(Command::Dump) => cli::cmd_dump()?,
+        Some(Command::Status {
+            format,
+            pick,
+            sample_ms,
+            interval_ms,
+            include_opaque,
+            min_rss_mib,
+            appid,
+            session,
+        }) => status::run(status::StatusArgs {
+            format: format.into(),
+            pick: pick.into(),
+            sample_ms,
+            interval_ms,
+            include_opaque,
+            min_rss_mib,
+            appid,
+            session,
+        })?,
         Some(Command::Kill {
             pid,
             appid,
@@ -43,4 +64,24 @@ fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
         }) => cli::cmd_kill(pid, appid, prefix, session, signal, method)?,
     }
     Ok(())
+}
+
+impl From<cli::StatusFormatArg> for status::StatusFormat {
+    fn from(v: cli::StatusFormatArg) -> Self {
+        match v {
+            cli::StatusFormatArg::Text => Self::Text,
+            cli::StatusFormatArg::Json => Self::Json,
+            cli::StatusFormatArg::Waybar => Self::Waybar,
+        }
+    }
+}
+
+impl From<cli::PickArg> for PickPolicy {
+    fn from(v: cli::PickArg) -> Self {
+        match v {
+            cli::PickArg::Hottest => Self::Hottest,
+            cli::PickArg::Rss => Self::Rss,
+            cli::PickArg::Focused => Self::Focused,
+        }
+    }
 }

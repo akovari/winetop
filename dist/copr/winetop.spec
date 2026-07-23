@@ -1,5 +1,5 @@
 Name:           winetop
-Version:        0.1.6
+Version:        0.2.0
 Release:        1%{?dist}
 Summary:        htop for Wine prefixes
 
@@ -33,6 +33,9 @@ install -D -m 0644 man/winetop.1 %{buildroot}%{_mandir}/man1/winetop.1
 %{_mandir}/man1/winetop.1*
 
 %changelog
+* Thu Jul 23 2026 Adam Kovari <adam@kovari.eu> - 0.2.0-1
+- Add winetop status for Waybar / status bars
+
 * Wed Jul 22 2026 Adam Kovari <adam@kovari.eu> - 0.1.6-1
 - Prune vendored static libs for Debian/Launchpad source uploads
 
